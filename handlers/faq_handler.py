@@ -19,6 +19,9 @@ async def faq_handler(callback_query: types.CallbackQuery):
     # Удаляем предыдущее сообщение, если оно есть
     await delete_previous_message(callback_query.message.bot, user_id)
 
+    # Объявляем переменную sent_message
+    sent_message = None  
+
     questions = await get_questions()
     logger.info(f"Загружено {len(questions)} вопросов из БД")
 
@@ -68,6 +71,14 @@ async def faq_command_handler(message: types.Message):
     Обработчик команды /faq.
     Запускает инлайн-режим FAQ так же, как кнопка "❓ FAQ".
     """
+    user_id = message.from_user.id
+
+    # Удаляем предыдущее сообщение, если оно есть
+    await delete_previous_message(message.bot, user_id)
+
+    # Объявляем переменную sent_message
+    sent_message = None  
+
     bot_username = (await message.bot.get_me()).username  # Получаем имя бота
     switch_inline_query = f"@{bot_username} "  # Подставляем инлайн-запрос в поле ввода
 
@@ -75,7 +86,10 @@ async def faq_command_handler(message: types.Message):
         [types.InlineKeyboardButton(text="🔍 Открыть FAQ", switch_inline_query_current_chat="")]
     ])
 
-    await message.answer(
+    sent_message = await message.answer(
         f"🔍 Введите ваш вопрос после @{bot_username}, чтобы получить ответ из FAQ.",
         reply_markup=keyboard
     )
+
+    # Сохраняем ID последнего отправленного сообщения
+    await save_last_message(user_id, sent_message)
