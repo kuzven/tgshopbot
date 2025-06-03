@@ -22,7 +22,12 @@ async def start_handler(message: types.Message):
     sent_message = None  
 
     if is_subscribed:
-        sent_message = await message.answer("Привет 👋 Ты подписан на группу и канал, добро пожаловать в бот!")
+        keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(text="📦 Каталог", callback_data="catalog")],
+            [types.InlineKeyboardButton(text="🛒 Корзина", callback_data="cart")],
+            [types.InlineKeyboardButton(text="❓ FAQ", switch_inline_query_current_chat="")]
+        ])
+        sent_message = await message.answer("Добро пожаловать в бот 👋, выбери раздел 👇", reply_markup=keyboard)
     else:
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
             [types.InlineKeyboardButton(text="🔗 Подписаться на канал", url="https://t.me/tgshop_channel")],
