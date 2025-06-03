@@ -1,8 +1,12 @@
+import os
+import logging
+from datetime import datetime
+from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
-import os
-from dotenv import load_dotenv
 from sqlalchemy.future import select
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -18,14 +22,34 @@ async_session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
 class Base(DeclarativeBase):
     pass
 
-async def get_session() -> AsyncSession:
+async def save_user(user):
     """
-    Создаёт новую асинхронную сессию PostgreSQL.
-    Открывает соединение с БД и автоматически закрывает после использования.
-    Используется для выполнения SQL-запросов в асинхронном режиме.
+    Проверяет, есть ли пользователь в БД.
+    Если нет – добавляет его в таблицу users_botuser.
     """
+    from helpers.models import BotUser
+
+    telegram_id = user.id
+    first_name = user.first_name
+    last_name = user.last_name if user.last_name else ""
+    username = user.username if user.username else ""
+
     async with async_session_maker() as session:
-        yield session
+        result = await session.execute(select(BotUser).where(BotUser.telegram_id == telegram_id))
+        existing_user = result.scalar()
+        
+        if not existing_user:
+            new_user = BotUser(
+                telegram_id=telegram_id,
+                first_name=first_name,
+                last_name=last_name,
+                username=username,
+                created_at=datetime.utcnow()
+            )
+            session.add(new_user)
+            await session.commit()
+            logger.info(f"Новый пользователь сохранён: {first_name} {last_name} (@{username})")
+
 
 async def get_questions():
     """
@@ -33,10 +57,6 @@ async def get_questions():
     Возвращает список объектов `Question`, содержащих `text` (вопрос) и `answer` (ответ).
     """
     from helpers.models import Question
-    from sqlalchemy.future import select
-    import logging
-
-    logger = logging.getLogger(__name__)
 
     async with async_session_maker() as session:
         result = await session.execute(select(Question))
@@ -49,7 +69,6 @@ async def get_categories(limit=5, offset=0):
     Загружает список категорий из таблицы shop_category.
     """
     from helpers.models import Category
-    from sqlalchemy.future import select
     async with async_session_maker() as session:
         result = await session.execute(select(Category).limit(limit).offset(offset))
         return result.scalars().all()

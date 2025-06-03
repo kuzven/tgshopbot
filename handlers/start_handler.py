@@ -1,5 +1,6 @@
 from aiogram import Router, types
 from aiogram.filters import Command
+from helpers.database import save_user
 from helpers.utils import check_subscription
 from helpers.message_manager import delete_previous_message, save_last_message
 from settings.config import TG_CHANNEL_URL, TG_GROUP_URL
@@ -10,10 +11,14 @@ router = Router()
 async def start_message_handler(message: types.Message):
     """
     Обработчик команды /start.
-    Отправляет главное меню.
+    Отправляет главное меню и сохраняет пользователя.
     """
     user_id = message.from_user.id
     first_name = message.from_user.first_name
+
+    # Сохраняем пользователя при первом запуске
+    await save_user(message.from_user)
+
     await send_main_menu(message.bot, user_id, first_name)
 
 @router.callback_query(lambda callback_query: callback_query.data == "start")
