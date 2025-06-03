@@ -9,6 +9,7 @@ from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
 
 from helpers.utils import check_subscription
+from helpers.message_manager import delete_previous_message, save_last_message
 from settings.config import GROUP_ID, CHANNEL_ID
 
 load_dotenv()
@@ -30,8 +31,6 @@ dp = Dispatcher()
 router = Router()
 dp.include_router(router)
 
-last_message = {}  # Словарь для хранения ID последнего сообщения пользователя
-
 @router.message(Command("start"))
 async def start_handler(message: types.Message):
     """
@@ -41,15 +40,7 @@ async def start_handler(message: types.Message):
     user_id = message.from_user.id
 
     # Удаляем предыдущее сообщение, если оно есть
-    if user_id in last_message:
-        message_id = last_message[user_id]
-        logger.info(f"Попытка удалить предыдущее сообщение: {message_id} для пользователя {user_id}")
-
-        try:
-            await bot.delete_message(chat_id=user_id, message_id=last_message[user_id])
-            logger.info(f"Сообщение {message_id} успешно удалено")
-        except Exception as e:
-            logger.warning(f"Ошибка удаления сообщения {message_id}: {e}")
+    await delete_previous_message(bot, user_id)
 
     is_subscribed = await check_subscription(user_id)
     
@@ -66,9 +57,7 @@ async def start_handler(message: types.Message):
         sent_message = await message.answer("❗ Ты не подписан на наш канал и группу! Для использования бота подпишись по кнопкам ниже, затем нажми /start чтобы проверить подписку!", reply_markup=keyboard)
 
     # Сохраняем ID последнего отправленного сообщения
-    if sent_message is not None:
-        last_message[user_id] = sent_message.message_id
-        logger.info(f"Сохранен ID нового сообщения: {sent_message.message_id} для пользователя {user_id}")
+    await save_last_message(user_id, sent_message)
 
 @dp.message(Command("help"))
 async def help_handler(message: types.Message):
@@ -76,7 +65,17 @@ async def help_handler(message: types.Message):
     Обработчик команды /help.
     Ответы на частозадаваемые вопросы.
     """
-    await message.answer("Я могу подсказать, что тебя интересует. Введи свой вопрос.")
+    user_id = message.from_user.id
+    # Удаляем предыдущее сообщение, если оно есть
+    await delete_previous_message(bot, user_id)
+
+    # Объявляем переменную sent_message
+    sent_message = None  
+
+    sent_message = await message.answer("Я могу подсказать, что тебя интересует. Введи свой вопрос.")
+
+    # Сохраняем ID последнего отправленного сообщения
+    await save_last_message(user_id, sent_message)
 
 async def main():
     await dp.start_polling(bot)  # Запуск бота
