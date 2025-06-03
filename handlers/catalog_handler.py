@@ -1,6 +1,7 @@
 import logging
 from aiogram import Router, types
 from helpers.database import get_categories
+from helpers.message_manager import delete_previous_message, save_last_message
 from settings.config import CATEGORIES_PER_PAGE  # Импортируем число категорий на одной странице
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,12 @@ async def catalog_handler(callback_query: types.CallbackQuery):
     """
     user_id = callback_query.from_user.id
     logger.info(f"Обработчик каталога вызван пользователем {user_id}")
+
+    # Удаляем предыдущее сообщение, если оно есть
+    await delete_previous_message(callback_query.message.bot, user_id)
+
+    # Объявляем переменную sent_message
+    sent_message = None  
 
     page = int(callback_query.data.split("_")[-1])  # Получаем номер страницы
     logger.info(f"Текущая страница каталога: {page}")
@@ -37,6 +44,9 @@ async def catalog_handler(callback_query: types.CallbackQuery):
     if navigation_buttons:
         keyboard.inline_keyboard.append(navigation_buttons)
 
-    await callback_query.message.edit_text("Выбери категорию товаров 👇", reply_markup=keyboard)
+    sent_message = await callback_query.message.answer("Выбери категорию товаров 👇", reply_markup=keyboard)
+
+    # Сохраняем ID последнего отправленного сообщения
+    await save_last_message(user_id, sent_message)
 
     logger.info(f"Каталог успешно обновлён для пользователя {user_id}")
