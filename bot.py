@@ -5,7 +5,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 from dotenv import load_dotenv
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
 
 from helpers.utils import check_subscription
@@ -27,25 +27,26 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+router = Router()
+dp.include_router(router)
 
-@dp.message(Command("start"))
+@router.message(Command("start"))
 async def start_handler(message: types.Message):
     """
     Обработчик команды /start.
-    Проверяет подписку пользователя на канал, группу и отправляет приветственное сообщение.
+    Проверяет подписку пользователя и отправляет приветственное сообщение.
     """
     user_id = message.from_user.id
     is_subscribed = await check_subscription(user_id)
 
     if is_subscribed:
-        await message.answer("Привет! Ты подписан на группу и канал, добро пожаловать в бот!")
+        await message.answer("Привет 👋 Ты подписан на группу и канал, добро пожаловать в бот!")
     else:
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
             [types.InlineKeyboardButton(text="🔗 Подписаться на канал", url="https://t.me/tgshop_channel")],
             [types.InlineKeyboardButton(text="🔗 Подписаться на группу", url="https://t.me/+n-qLN2T8xCZlOTEy")]
         ])
-        
-        await message.answer("❗ Чтобы пользоваться ботом, подпишись на наш канал и группу!", reply_markup=keyboard)
+        await message.answer("❗ Ты не подписан на наш канал и группу! Для использования бота подпишись по кнопкам ниже, затем нажми /start чтобы проверить подписку!", reply_markup=keyboard)
 
 @dp.message(Command("help"))
 async def help_handler(message: types.Message):
