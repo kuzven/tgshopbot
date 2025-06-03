@@ -23,7 +23,7 @@ async def start_handler(message: types.Message):
 
     if is_subscribed:
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-            [types.InlineKeyboardButton(text="📦 Каталог", callback_data="catalog")],
+            [types.InlineKeyboardButton(text="📦 Каталог", callback_data="catalog_page_1")],
             [types.InlineKeyboardButton(text="🛒 Корзина", callback_data="cart")],
             [types.InlineKeyboardButton(text="❓ FAQ", switch_inline_query_current_chat="")]
         ])

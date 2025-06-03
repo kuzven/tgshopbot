@@ -18,7 +18,6 @@ async_session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
 class Base(DeclarativeBase):
     pass
 
-# Получение асинхронной сессии
 async def get_session() -> AsyncSession:
     """
     Создаёт новую асинхронную сессию PostgreSQL.
@@ -44,3 +43,13 @@ async def get_questions():
         questions = result.scalars().all()
         logger.info(f"Загружено {len(questions)} вопросов: {[q.text for q in questions]}")
         return questions
+    
+async def get_categories(limit=5, offset=0):
+    """
+    Загружает список категорий из таблицы shop_category.
+    """
+    from helpers.models import Category
+    from sqlalchemy.future import select
+    async with async_session_maker() as session:
+        result = await session.execute(select(Category).limit(limit).offset(offset))
+        return result.scalars().all()
