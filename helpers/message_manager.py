@@ -23,6 +23,6 @@ async def save_last_message(user_id: int, message):
     """
     Сохраняет ID последнего отправленного сообщения.
     """
-    if message is not None:
+    if message and hasattr(message, "message_id"):
         last_message[user_id] = message.message_id
         logger.info(f"Сохранен ID нового сообщения: {message.message_id} для пользователя {user_id}")

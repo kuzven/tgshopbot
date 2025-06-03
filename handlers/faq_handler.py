@@ -45,9 +45,13 @@ async def faq_inline_query(query: types.InlineQuery):
     Обработчик инлайн-запросов для FAQ.
     Автоматически дополняет вопросы и показывает ответы.
     """
+    user_id = query.from_user.id
     logger.info(f"Получен инлайн-запрос: {query.query} от {query.from_user.id}")
-    user_query = query.query.lower().strip()  # Убираем пробелы и приводим к нижнему регистру
 
+    # Удаляем предыдущее сообщение, если оно есть
+    await delete_previous_message(query.bot, user_id)
+
+    user_query = query.query.lower().strip()  # Убираем пробелы и приводим к нижнему регистру
     questions = await get_questions()
     logger.info(f"Всего загружено {len(questions)} вопросов из БД")
 
@@ -56,14 +60,23 @@ async def faq_inline_query(query: types.InlineQuery):
         types.InlineQueryResultArticle(
             id=str(q.id),
             title=q.text,
-            input_message_content=types.InputTextMessageContent(message_text=f"❓ *{q.text}*\n\n{q.answer}"),
-            description=q.answer[:50]  # Показываем превью ответа
+            # input_message_content=types.InputTextMessageContent(message_text=f"❓ *{q.text}*\n\n{q.answer}"),
+            input_message_content=types.InputTextMessageContent(
+                message_text=f"❓ *{q.text}*\n\n{q.answer}",
+                parse_mode="Markdown"
+            ),
+            description=q.answer[:50],  # Показываем превью ответа
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[
+                [types.InlineKeyboardButton(text="🔍 Другой вопрос", switch_inline_query_current_chat="")],
+                [types.InlineKeyboardButton(text="🏠 Главное меню", callback_data="start")]
+            ])
         )
         for q in questions if user_query in q.text.lower() or q.text.lower().startswith(user_query)
     ]
 
-    logger.info(f"Найдено {len(results)} подходящих вопросов для запроса: {user_query}")
     await query.answer(results, cache_time=0)
+
+    logger.info(f"Инлайн-ответ отправлен пользователю {user_id}")
 
 @router.message(Command("faq"))
 async def faq_command_handler(message: types.Message):
