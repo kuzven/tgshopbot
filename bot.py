@@ -13,7 +13,6 @@ from helpers.utils import check_subscription
 from helpers.message_manager import delete_previous_message, save_last_message
 from settings.config import GROUP_ID, CHANNEL_ID
 from handlers.start_handler import router as start_router
-from handlers.help_handler import router as help_router
 from handlers.faq_handler import router as faq_router
 
 load_dotenv()
@@ -37,7 +36,6 @@ dp.include_router(router)
 
 # Подключаем хендлеры
 dp.include_router(start_router)
-dp.include_router(help_router)
 dp.include_router(faq_router)
 
 async def main():

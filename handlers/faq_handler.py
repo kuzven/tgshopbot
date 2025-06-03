@@ -1,5 +1,6 @@
 import logging
 from aiogram import Router, types
+from aiogram.filters import Command
 from helpers.database import get_questions
 from helpers.message_manager import delete_previous_message, save_last_message
 
@@ -41,8 +42,11 @@ async def faq_inline_query(query: types.InlineQuery):
     Обработчик инлайн-запросов для FAQ.
     Автоматически дополняет вопросы и показывает ответы.
     """
-    user_query = query.query.lower()
+    logger.info(f"Получен инлайн-запрос: {query.query} от {query.from_user.id}")
+    user_query = query.query.lower().strip()  # Убираем пробелы и приводим к нижнему регистру
+
     questions = await get_questions()
+    logger.info(f"Всего загружено {len(questions)} вопросов из БД")
 
     # Фильтруем вопросы по пользовательскому запросу
     results = [
@@ -52,7 +56,26 @@ async def faq_inline_query(query: types.InlineQuery):
             input_message_content=types.InputTextMessageContent(message_text=f"❓ *{q.text}*\n\n{q.answer}"),
             description=q.answer[:50]  # Показываем превью ответа
         )
-        for q in questions if user_query in q.text.lower()
+        for q in questions if user_query in q.text.lower() or q.text.lower().startswith(user_query)
     ]
 
-    await query.answer(results, cache_time=1)
+    logger.info(f"Найдено {len(results)} подходящих вопросов для запроса: {user_query}")
+    await query.answer(results, cache_time=0)
+
+@router.message(Command("faq"))
+async def faq_command_handler(message: types.Message):
+    """
+    Обработчик команды /faq.
+    Запускает инлайн-режим FAQ так же, как кнопка "❓ FAQ".
+    """
+    bot_username = (await message.bot.get_me()).username  # Получаем имя бота
+    switch_inline_query = f"@{bot_username} "  # Подставляем инлайн-запрос в поле ввода
+
+    keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="🔍 Открыть FAQ", switch_inline_query_current_chat="")]
+    ])
+
+    await message.answer(
+        f"🔍 Введите ваш вопрос после @{bot_username}, чтобы получить ответ из FAQ.",
+        reply_markup=keyboard
+    )
