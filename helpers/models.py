@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, BigInteger, String, DateTime
+from sqlalchemy import Column, Integer, BigInteger, String, DateTime, ForeignKey
 from helpers.database import Base
 from datetime import datetime
 
@@ -23,3 +23,10 @@ class Category(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(255), nullable=False)
+
+class SubCategory(Base):
+    __tablename__ = "shop_subcategory"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False)
+    category_id = Column(Integer, ForeignKey("shop_category.id"), nullable=False)

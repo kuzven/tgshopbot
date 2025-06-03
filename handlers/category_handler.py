@@ -7,8 +7,8 @@ from settings.config import CATEGORIES_PER_PAGE  # Импортируем чис
 logger = logging.getLogger(__name__)
 router = Router()
 
-@router.callback_query(lambda callback_query: callback_query.data.startswith("catalog_page_"))
-async def catalog_handler(callback_query: types.CallbackQuery):
+@router.callback_query(lambda callback_query: callback_query.data.startswith("category_page_"))
+async def category_handler(callback_query: types.CallbackQuery):
     """
     Обработчик кнопки "📦 Каталог".
     Загружает категории из БД и показывает их с кнопками.
@@ -37,9 +37,9 @@ async def catalog_handler(callback_query: types.CallbackQuery):
     # Добавляем кнопки "⬅️ Назад" и "➡️ Вперёд"
     navigation_buttons = []
     if page > 1:
-        navigation_buttons.append(types.InlineKeyboardButton(text="⬅️ Назад", callback_data=f"catalog_page_{page - 1}"))
+        navigation_buttons.append(types.InlineKeyboardButton(text="⬅️ Назад", callback_data=f"category_page_{page - 1}"))
     if len(categories) == CATEGORIES_PER_PAGE:
-        navigation_buttons.append(types.InlineKeyboardButton(text="➡️ Вперёд", callback_data=f"catalog_page_{page + 1}"))
+        navigation_buttons.append(types.InlineKeyboardButton(text="➡️ Вперёд", callback_data=f"category_page_{page + 1}"))
 
     if navigation_buttons:
         keyboard.inline_keyboard.append(navigation_buttons)

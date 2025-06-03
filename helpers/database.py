@@ -72,3 +72,15 @@ async def get_categories(limit=5, offset=0):
     async with async_session_maker() as session:
         result = await session.execute(select(Category).limit(limit).offset(offset))
         return result.scalars().all()
+
+async def get_subcategories(category_id, limit=5, offset=0):
+    """
+    Загружает список подкатегорий для заданной категории.
+    """
+    from helpers.models import SubCategory
+
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(SubCategory).where(SubCategory.category_id == category_id).limit(limit).offset(offset)
+        )
+        return result.scalars().all()
