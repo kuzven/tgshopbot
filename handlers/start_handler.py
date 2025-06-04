@@ -29,7 +29,22 @@ async def start_callback_handler(callback_query: types.CallbackQuery):
     """
     user_id = callback_query.from_user.id
     first_name = callback_query.from_user.first_name
-    await send_main_menu(callback_query.bot, user_id, first_name)
+    # Удаляем предыдущее сообщение, если оно есть
+    if callback_query.message:
+        await delete_previous_message(callback_query.message.bot, user_id)
+
+        # Объявляем переменную sent_message
+        sent_message = None
+
+        # Отправляем главное меню
+        sent_message = await send_main_menu(callback_query.bot, user_id, first_name)
+
+        # Сохраняем ID последнего отправленного сообщения
+        await save_last_message(user_id, sent_message)
+    
+    else:
+        # Если `callback_query.message` нет (из инлайн-режима), просто отправляем главное меню
+        await send_main_menu(callback_query.bot, user_id, first_name)
 
 async def send_main_menu(bot, user_id, first_name):
     """

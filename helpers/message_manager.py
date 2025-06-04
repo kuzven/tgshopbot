@@ -10,12 +10,13 @@ async def delete_previous_message(bot: Bot, user_id: int):
     """
     Удаляет предыдущее сообщение пользователя, если оно есть.
     """
-    if user_id in last_message:
-        message_id = last_message[user_id]
+    if user_id in last_message and last_message[user_id]:  # Проверяем, есть ли сообщения
+        message_id = last_message[user_id][-1]  # Берём последнее сообщение из списка
         logger.info(f"Попытка удалить предыдущее сообщение: {message_id} для пользователя {user_id}")
         try:
             await bot.delete_message(chat_id=user_id, message_id=message_id)
             logger.info(f"Сообщение {message_id} успешно удалено")
+            last_message[user_id].pop()  # Удаляем ID из списка
         except Exception as e:
             logger.warning(f"Ошибка удаления сообщения {message_id}: {e}")
 

@@ -3,7 +3,7 @@ from aiogram import Router, types
 from sqlalchemy.future import select
 from sqlalchemy.sql import func
 from helpers.database import get_products
-from helpers.message_manager import delete_all_previous_messages, save_last_message
+from helpers.message_manager import delete_previous_message, delete_all_previous_messages, save_last_message
 from helpers.database import async_session_maker
 from settings.config import PRODUCTS_PER_PAGE
 from helpers.models import Product
@@ -33,10 +33,29 @@ async def product_handler(callback_query: types.CallbackQuery):
     # Загружаем товары для текущей страницы
     products = await get_products(subcategory_id, page)
 
+    # Если товаров нет в подкатегории
     if not products:
-        logger.warning(f"❌ В подкатегории {subcategory_id} нет товаров. Отправляем уведомление пользователю {user_id}.")
-        sent_message = await callback_query.message.answer("❌ Нет товаров в этой подкатегории.")
+        logger.warning(f"❌ В подкатегории {subcategory_id} нет товаров. Показываем кнопку '🏠 Главное меню'.")
+
+        # Удаляем предыдущее сообщение, если оно есть
+        await delete_previous_message(callback_query.message.bot, user_id)
+
+        # Объявляем переменную sent_message
+        sent_message = None
+
+        # Создаём клавиатуру
+        main_menu_keyboard = types.InlineKeyboardMarkup(inline_keyboard=[])
+        main_menu_button = types.InlineKeyboardButton(text="🏠 Главное меню", callback_data="start")
+
+        main_menu_keyboard.inline_keyboard.append([main_menu_button])  # Добавляем кнопку
+
+        logger.info(f"Отправляем кнопку '🏠 Главное меню' пользователю {user_id}")
+
+        sent_message = await callback_query.message.answer("❌ Нет товаров в этой подкатегории.", reply_markup=main_menu_keyboard)
+        
+        # Сохраняем ID последнего отправленного сообщения
         await save_last_message(user_id, sent_message)
+        
         return
 
     # Отправляем товары по одному
