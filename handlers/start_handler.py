@@ -1,5 +1,6 @@
 from aiogram import Router, types
 from aiogram.filters import Command
+from handlers.cart_handler import view_cart_handler
 from helpers.database import save_user
 from helpers.utils import check_subscription
 from helpers.message_manager import delete_previous_message, save_last_message
@@ -55,7 +56,7 @@ async def send_main_menu(bot, user_id, first_name):
     is_subscribed = await check_subscription(user_id)
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
         [types.InlineKeyboardButton(text="📦 Каталог", callback_data="category_page_1")],
-        [types.InlineKeyboardButton(text="🛒 Корзина", callback_data="cart")],
+        [types.InlineKeyboardButton(text="🛒 Корзина", callback_data="view_cart")],
         [types.InlineKeyboardButton(text="❓ FAQ", switch_inline_query_current_chat="")]
     ])
 
@@ -73,3 +74,11 @@ async def send_main_menu(bot, user_id, first_name):
         sent_message = await bot.send_message(chat_id=user_id, text=f"❗ {first_name}, ты не подписан на наш канал и группу!\n\nПодпишись, затем нажми /start", reply_markup=keyboard)
 
     await save_last_message(user_id, sent_message)
+
+@router.message(Command("cart"))
+async def cart_command_handler(message: types.Message):
+    """
+    Показывает корзину при вводе команды `/cart`.
+    """
+    user_id = message.from_user.id  # Получаем user_id
+    await view_cart_handler(message, user_id)  # Передаём user_id в `view_cart_handler`
