@@ -19,6 +19,7 @@ async def ask_quantity_handler(callback_query: types.CallbackQuery):
     """
     user_id = callback_query.from_user.id
     product_id = int(callback_query.data.split("_")[-1])
+    product_name = callback_query.message.caption.split("\n")[0]
 
     logger.info(f"🛒 Пользователь {user_id} выбрал товар {product_id}, запрашиваем количество.")
 
@@ -34,7 +35,7 @@ async def ask_quantity_handler(callback_query: types.CallbackQuery):
     await save_last_message(user_id, sent_message)
 
     # Сохраняем product_id во временное хранилище
-    cart_sessions[user_id] = {"product_id": product_id}
+    cart_sessions[user_id] = {"product_id": product_id, "product_name": product_name}
 
 @router.message(lambda message: message.text.isdigit() and message.from_user.id in cart_sessions)
 async def confirm_cart_handler(message: types.Message):
@@ -58,7 +59,7 @@ async def confirm_cart_handler(message: types.Message):
 
         return
 
-    product_id = cart_sessions[user_id]["product_id"]
+    product_name = cart_sessions[user_id]["product_name"]
     cart_sessions[user_id]["quantity"] = quantity
 
     confirm_keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
@@ -66,7 +67,7 @@ async def confirm_cart_handler(message: types.Message):
         [types.InlineKeyboardButton(text="🏠 Главное меню", callback_data="start")]
     ])
 
-    sent_message = await message.answer(f"Ты действительно хочешь добавить в корзину {quantity} шт.?", reply_markup=confirm_keyboard)
+    sent_message = await message.answer(f"Ты действительно хочешь добавить в корзину {quantity} шт. товара {product_name}?", reply_markup=confirm_keyboard)
 
     # Сохраняем ID последнего отправленного сообщения
     await save_last_message(user_id, sent_message)
@@ -94,11 +95,20 @@ async def add_cart_handler(callback_query: types.CallbackQuery):
         return
 
     product_id = cart_sessions[user_id]["product_id"]
+    product_name = cart_sessions[user_id]["product_name"]
     quantity = cart_sessions[user_id]["quantity"]
 
     await add_to_cart(user_id, product_id, quantity)
 
-    sent_message = await callback_query.message.answer(f"✅ {quantity} шт. добавлены в корзину!")
+    # Создаём клавиатуру с кнопками
+    cart_keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="🛒 Перейти в корзину", callback_data="view_cart")],
+        [types.InlineKeyboardButton(text="🏠 Главное меню", callback_data="start")]
+    ])
+
+    sent_message = await callback_query.message.answer(
+        f"✅ {quantity} шт. товара {product_name} добавлены в корзину!", reply_markup=cart_keyboard
+    )
 
     # Сохраняем ID последнего отправленного сообщения
     await save_last_message(user_id, sent_message)
