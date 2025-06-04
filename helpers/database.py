@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.future import select
+from sqlalchemy.sql import text
 
 logger = logging.getLogger(__name__)
 
@@ -105,3 +106,34 @@ async def get_products(subcategory_id, page=1):
 
         logger.info(f"Загружено {len(products)} товаров для подкатегории {subcategory_id}, страница {page}")
         return products
+
+async def add_to_cart(user_id, product_id, quantity):
+    """
+    Добавляет товар в корзину, используя `id`, а не `telegram_id`.
+    """
+    async with async_session_maker() as session:
+        logger.info(f"🔍 Получаем `id` для `telegram_id={user_id}`.")
+
+        # Получаем `id` по `telegram_id`
+        user_check_query = text("SELECT id FROM users_botuser WHERE telegram_id = :user_id")
+        result = await session.execute(user_check_query, {"user_id": user_id})
+        user_db_id = result.scalar()
+
+        if not user_db_id:
+            logger.error(f"❌ Ошибка! `telegram_id={user_id}` не найден в `users_botuser`.")
+            return  # Останавливаем выполнение
+
+        await session.commit()
+        session.expire_all()
+
+        logger.info(f"`id={user_db_id}` найден! Используем его при вставке в `shop_cart`.")
+        logger.info(f"🛒 Добавляем товар {product_id} в корзину пользователю `id={user_db_id}`, количество {quantity}")
+
+        cart_query = text("""
+        INSERT INTO shop_cart (user_id, product_id, quantity, added_at)
+        VALUES (:user_db_id, :product_id, :quantity, NOW())
+        """)
+        await session.execute(cart_query, {"user_db_id": user_db_id, "product_id": product_id, "quantity": quantity})
+        await session.commit()
+
+        logger.info(f"Товар {product_id} добавлен в корзину пользователю `id={user_db_id}`")
