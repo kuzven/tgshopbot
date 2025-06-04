@@ -84,3 +84,24 @@ async def get_subcategories(category_id, limit=5, offset=0):
             select(SubCategory).where(SubCategory.category_id == category_id).limit(limit).offset(offset)
         )
         return result.scalars().all()
+
+async def get_products(subcategory_id, page=1):
+    """
+    Загружает список товаров для подкатегории с учетом пагинации.
+    """
+    from helpers.models import Product
+    from settings.config import PRODUCTS_PER_PAGE
+
+    offset = (page - 1) * PRODUCTS_PER_PAGE
+
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(Product)
+            .where(Product.subcategory_id == subcategory_id)
+            .limit(PRODUCTS_PER_PAGE)
+            .offset(offset)
+        )
+        products = result.scalars().all()
+
+        logger.info(f"Загружено {len(products)} товаров для подкатегории {subcategory_id}, страница {page}")
+        return products

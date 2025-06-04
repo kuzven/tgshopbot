@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, BigInteger, String, DateTime, ForeignKey
-from helpers.database import Base
 from datetime import datetime
+from sqlalchemy import Column, Integer, BigInteger, String, DateTime, ForeignKey, Text, DECIMAL
+from helpers.database import Base
+from settings.config import MEDIA_URL
 
 class BotUser(Base):
     __tablename__ = "users_botuser"
@@ -30,3 +31,13 @@ class SubCategory(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(255), nullable=False)
     category_id = Column(Integer, ForeignKey("shop_category.id"), nullable=False)
+
+class Product(Base):
+    __tablename__ = "shop_product"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
+    price = Column(DECIMAL(10, 2), nullable=False)
+    subcategory_id = Column(Integer, ForeignKey("shop_subcategory.id"), nullable=False)
+    image = Column(String(255), nullable=False)
