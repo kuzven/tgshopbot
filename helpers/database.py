@@ -109,7 +109,7 @@ async def get_products(subcategory_id, page=1):
 
 async def add_to_cart(user_id, product_id, quantity):
     """
-    Добавляет товар в корзину, используя `id`, а не `telegram_id`.
+    Добавляет товар в корзину или обновляет количество, используя `id`, а не `telegram_id`.
     """
     async with async_session_maker() as session:
         logger.info(f"🔍 Получаем `id` для `telegram_id={user_id}`.")
@@ -120,20 +120,39 @@ async def add_to_cart(user_id, product_id, quantity):
         user_db_id = result.scalar()
 
         if not user_db_id:
-            logger.error(f"❌ Ошибка! `telegram_id={user_id}` не найден в `users_botuser`.")
+            logger.error(f"Ошибка! `telegram_id={user_id}` не найден в `users_botuser`.")
             return  # Останавливаем выполнение
 
         await session.commit()
         session.expire_all()
 
-        logger.info(f"`id={user_db_id}` найден! Используем его при вставке в `shop_cart`.")
-        logger.info(f"🛒 Добавляем товар {product_id} в корзину пользователю `id={user_db_id}`, количество {quantity}")
+        logger.info(f"`id={user_db_id}` найден! Используем его при обработке `shop_cart`.")
 
-        cart_query = text("""
-        INSERT INTO shop_cart (user_id, product_id, quantity, added_at)
-        VALUES (:user_db_id, :product_id, :quantity, NOW())
+        # Проверяем, есть ли товар в `shop_cart`
+        check_cart_query = text("""
+        SELECT quantity FROM shop_cart WHERE user_id = :user_db_id AND product_id = :product_id
         """)
-        await session.execute(cart_query, {"user_db_id": user_db_id, "product_id": product_id, "quantity": quantity})
-        await session.commit()
+        result = await session.execute(check_cart_query, {"user_db_id": user_db_id, "product_id": product_id})
+        existing_quantity = result.scalar()
 
-        logger.info(f"Товар {product_id} добавлен в корзину пользователю `id={user_db_id}`")
+        if existing_quantity:
+            # Если товар уже есть, обновляем количество
+            new_quantity = existing_quantity + quantity
+            logger.info(f"Товар {product_id} уже в корзине, обновляем количество до {new_quantity}.")
+
+            update_cart_query = text("""
+            UPDATE shop_cart SET quantity = :new_quantity WHERE user_id = :user_db_id AND product_id = :product_id
+            """)
+            await session.execute(update_cart_query, {"new_quantity": new_quantity, "user_db_id": user_db_id, "product_id": product_id})
+        else:
+            # Если товара ещё нет, добавляем новую запись
+            logger.info(f"Товар {product_id} отсутствует в корзине, добавляем новый.")
+
+            insert_cart_query = text("""
+            INSERT INTO shop_cart (user_id, product_id, quantity, added_at)
+            VALUES (:user_db_id, :product_id, :quantity, NOW())
+            """)
+            await session.execute(insert_cart_query, {"user_db_id": user_db_id, "product_id": product_id, "quantity": quantity})
+
+        await session.commit()
+        logger.info(f"Товар {product_id} обработан для пользователя `id={user_db_id}`.")
