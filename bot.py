@@ -49,6 +49,7 @@ dp.include_router(cart_router)
 async def main():
     await bot.set_my_commands([  # Устанавливаем команды бота перед запуском
         BotCommand(command="start", description="Меню"),
+        BotCommand(command="cart", description="Корзина"),
         BotCommand(command="faq", description="FAQ")
     ])
     await dp.start_polling(bot)  # Запуск бота
