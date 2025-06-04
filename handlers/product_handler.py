@@ -28,7 +28,7 @@ async def product_handler(callback_query: types.CallbackQuery):
 
     # Получаем общее количество товаров в подкатегории
     total_products = await count_products_in_subcategory(subcategory_id)
-    logger.info(f"📊 В подкатегории {subcategory_id} всего товаров: {total_products}")
+    logger.info(f"В подкатегории {subcategory_id} всего товаров: {total_products}")
 
     # Загружаем товары для текущей страницы
     products = await get_products(subcategory_id, page)
@@ -41,7 +41,7 @@ async def product_handler(callback_query: types.CallbackQuery):
 
     # Отправляем товары по одному
     for product in products:
-        logger.info(f"🛍️ Проверяем товар: {product.name}, цена: {product.price}, изображение: {product.image}")
+        logger.info(f"Проверяем товар: {product.name}, цена: {product.price}, изображение: {product.image}")
 
         product_keyboard = types.InlineKeyboardMarkup(inline_keyboard=[])
         btn = types.InlineKeyboardButton(text=f"🛒 В корзину ({product.price} ₽)", callback_data=f"add_to_cart_{product.id}")
@@ -68,9 +68,13 @@ async def product_handler(callback_query: types.CallbackQuery):
     if next_page_start < total_products:  # Проверяем, останутся ли ещё товары!
         navigation_keyboard.inline_keyboard.append([types.InlineKeyboardButton(text="➡️ Вперёд", callback_data=f"product_page_{subcategory_id}_{page + 1}")])
 
+    # Вычисляем количество страниц
+    total_pages = (total_products + PRODUCTS_PER_PAGE - 1) // PRODUCTS_PER_PAGE
+    navigation_text = f"Всего товаров в подкатегории: {total_products}\nСтраница {page} из {total_pages}"
+
     if navigation_keyboard.inline_keyboard:
         logger.info(f"Добавлены кнопки навигации.")
-        sent_message = await callback_query.message.answer("Навигация:", reply_markup=navigation_keyboard)
+        sent_message = await callback_query.message.answer(navigation_text, reply_markup=navigation_keyboard)
         await save_last_message(user_id, sent_message)  # Сохраняем навигацию
 
     logger.info(f"Все товары успешно загружены для пользователя {user_id}")
