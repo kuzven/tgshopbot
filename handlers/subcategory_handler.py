@@ -28,6 +28,29 @@ async def subcategory_handler(callback_query: types.CallbackQuery):
     offset = (page - 1) * SUBCATEGORIES_PER_PAGE
     subcategories = await get_subcategories(category_id, limit=SUBCATEGORIES_PER_PAGE, offset=offset)
 
+    if not subcategories:
+        logger.warning(f"❌ В категории {category_id} нет подкатегорий. Показываем кнопку '🏠 Главное меню'.")
+
+        # Удаляем предыдущее сообщение, если оно есть
+        await delete_previous_message(callback_query.message.bot, user_id)
+
+        # Объявляем переменную sent_message
+        sent_message = None
+
+        # Создаём клавиатуру с кнопкой "🏠 Главное меню"
+        main_menu_keyboard = types.InlineKeyboardMarkup(inline_keyboard=[])
+        main_menu_button = types.InlineKeyboardButton(text="🏠 Главное меню", callback_data="start")
+        main_menu_keyboard.inline_keyboard.append([main_menu_button])
+
+        logger.info(f"Отправляем кнопку '🏠 Главное меню' пользователю {user_id}")
+
+        sent_message = await callback_query.message.answer("❌ Нет подкатегорий в этой категории.", reply_markup=main_menu_keyboard)
+
+        # Сохраняем ID последнего отправленного сообщения
+        await save_last_message(user_id, sent_message)
+
+        return
+
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
         [types.InlineKeyboardButton(text=sub.name, callback_data=f"subcategory_{sub.id}")]
         for sub in subcategories
