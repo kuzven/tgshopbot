@@ -1,6 +1,7 @@
-import os
 import asyncio
 import logging
+import openpyxl
+import os
 import uuid
 from aiogram import Router, types
 from yookassa import Configuration, Payment
@@ -137,9 +138,9 @@ async def confirm_order_handler(message: types.Message):
     logger.info(f"`order_sessions[{user_id}]` Данные `order_sessions` удалены успешно!")
 
     # Запускаем проверку статуса платежа
-    await check_payment_status(message.bot, payment_id, user_id)
+    await check_payment_status(message.bot, payment_id, user_id, total_amount)
 
-async def check_payment_status(bot, payment_id, user_id):
+async def check_payment_status(bot, payment_id, user_id, total_amount):
     """
     Проверяет статус платежа и отправляет сообщение пользователю после успешной оплаты.
     """
@@ -165,6 +166,58 @@ async def check_payment_status(bot, payment_id, user_id):
             )
             logger.info(f"Отправлено подтверждение оплаты пользователю `{user_id}`.")
 
+            # Получаем `user_db_id` по Telegram ID
+            async with async_session_maker() as session:
+                user_query = text("SELECT id FROM users_botuser WHERE telegram_id = :telegram_id")
+                result = await session.execute(user_query, {"telegram_id": user_id})
+                user_db_id = result.scalar()
+
+                if not user_db_id:
+                    logger.warning(f"Ошибка! `telegram_id={user_id}` не найден в `users_botuser`.")
+                    return
+
+                # Теперь ищем заказ по `user_db_id`
+                order_query = text("SELECT id, delivery_info FROM shop_order WHERE user_id = :user_db_id ORDER BY created_at DESC LIMIT 1")
+                result = await session.execute(order_query, {"user_db_id": user_db_id})
+                order = result.fetchone()
+
+                if order is None:
+                    logger.warning(f"Ошибка! Заказ пользователя `{user_db_id}` не найден в `shop_order`.")
+                    return
+                
+                cart_query = text("SELECT shop_product.name, shop_orderitem.quantity FROM shop_orderitem JOIN shop_product ON shop_orderitem.product_id = shop_product.id WHERE shop_orderitem.order_id = :order_id")
+                result = await session.execute(cart_query, {"order_id": order.id})
+                cart_items = result.fetchall()
+
+            # Сохраняем заказ в Excel
+            save_order_to_excel(order.id, user_db_id, total_amount, order.delivery_info, cart_items)
+            logger.info(f"Заказ `{order.id}` сохранён в Excel.")
+
             break  # Останавливаем проверку после успешной оплаты
 
         await asyncio.sleep(10)  # Проверяем статус каждые 10 секунд
+
+def save_order_to_excel(order_id, user_id, total_amount, delivery_info, cart_items):
+    """
+    Сохраняет информацию о заказе в Excel-файл в папке 'orders'.
+    """
+    folder_path = "orders"
+    file_path = os.path.join(folder_path, "orders.xlsx")
+
+    # Проверяем, существует ли папка, если нет — создаём
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+
+    try:
+        wb = openpyxl.load_workbook(file_path)
+        sheet = wb.active
+    except FileNotFoundError:
+        wb = openpyxl.Workbook()
+        sheet = wb.active
+        sheet.append(["Заказ №", "Пользователь", "Сумма", "Доставка", "Товары"])
+
+    items_str = ", ".join([f"{product_name} (x{quantity})" for product_name, quantity in cart_items])
+    sheet.append([order_id, user_id, f"{total_amount:.2f} ₽", delivery_info, items_str])
+    
+    wb.save(file_path)
+    logger.info(f"Заказ `{order_id}` сохранён в `{file_path}`.")
