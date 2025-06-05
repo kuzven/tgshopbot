@@ -1,8 +1,24 @@
-from aiogram import Router, types
+import os
 import logging
+import uuid
+from aiogram import Router, types
+from yookassa import Configuration, Payment
 from helpers.database import async_session_maker
-from helpers.message_manager import delete_previous_message, delete_all_previous_messages
+from helpers.message_manager import delete_previous_message
 from sqlalchemy.sql import text
+from dotenv import load_dotenv
+
+# Загружаем `.env`
+load_dotenv()
+
+# Подключаем Юкассу
+YOOKASSA_SHOP_ID = os.getenv("YOOKASSA_SHOP_ID")
+YOOKASSA_SECRET_KEY = os.getenv("YOOKASSA_SECRET_KEY")
+YOOKASSA_RETURN_URL = os.getenv("YOOKASSA_RETURN_URL")
+
+# Настраиваем авторизацию Юкасса
+Configuration.account_id = YOOKASSA_SHOP_ID
+Configuration.secret_key = YOOKASSA_SECRET_KEY
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -30,7 +46,7 @@ async def ask_delivery_info_handler(callback_query: types.CallbackQuery):
 @router.message(lambda message: message.from_user.id in order_sessions)
 async def confirm_order_handler(message: types.Message):
     """
-    Создаёт заказ и подтверждает его пользователю.
+    Создаёт заказ и отправляет ссылку для оплаты в Юкасса.
     """
     user_id = message.from_user.id
     delivery_info = message.text
@@ -59,17 +75,24 @@ async def confirm_order_handler(message: types.Message):
 
         logger.info(f"✅ Заказ `{order_id}` успешно создан для пользователя `{user_id}`.")
 
-        # ✅ Добавляем товары в заказ
+        # Добавляем товары в заказ
         cart_query = text("SELECT product_id, quantity FROM shop_cart WHERE user_id = :user_db_id")
         result = await session.execute(cart_query, {"user_db_id": user_db_id})
         cart_items = result.fetchall()
 
+        total_amount = 0.0
         for product_id, quantity in cart_items:
+            product_query = text("SELECT price FROM shop_product WHERE id = :product_id")
+            result = await session.execute(product_query, {"product_id": product_id})
+            product_price = result.scalar()
+
             add_order_item_query = text("""
             INSERT INTO shop_orderitem (order_id, product_id, quantity)
             VALUES (:order_id, :product_id, :quantity)
             """)
             await session.execute(add_order_item_query, {"order_id": order_id, "product_id": product_id, "quantity": quantity})
+            
+            total_amount += float(product_price) * quantity
 
         await session.commit()
         logger.info(f"Все товары из корзины добавлены в заказ `{order_id}`.")
@@ -83,13 +106,28 @@ async def confirm_order_handler(message: types.Message):
     await delete_previous_message(message.bot, user_id)
     logger.info(f"Сообщение запроса доставки пользователя `{user_id}` удалено.")
 
+    # Генерируем уникальный `idempotence_key` для Юкасса
+    idempotence_key = str(uuid.uuid4())
+
+    # Создаём платёж через Юкасса
+    payment = Payment.create({
+        "amount": {"value": f"{total_amount:.2f}", "currency": "RUB"},
+        "confirmation": {"type": "redirect", "return_url": YOOKASSA_RETURN_URL},
+        "capture": True,
+        "description": f"Оплата заказа №{order_id}"
+    }, idempotence_key)  # Передаём `idempotence_key`
+
+    payment_url = payment.confirmation.confirmation_url
+    logger.info(f"Сгенерирована ссылка для оплаты заказа `{order_id}`: {payment_url}")
+
     # Клавиатура с кнопкой "🏠 Главное меню"
     menu_keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="💳 Оплатить заказ", url=payment_url)],
         [types.InlineKeyboardButton(text="🏠 Главное меню", callback_data="start")]
     ])
 
     # Подтверждение заказа
-    sent_message = await message.answer("✅ Заказ принят, ожидай доставку!", reply_markup=menu_keyboard)
+    sent_message = await message.answer("✅ Заказ принят, произведи оплату!", reply_markup=menu_keyboard)
     logger.info(f"Сохранён ID сообщения `{sent_message.message_id}` для подтверждения заказа пользователя `{user_id}`.")
 
     # Удаляем данные из `order_sessions`
