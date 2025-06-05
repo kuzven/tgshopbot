@@ -1,0 +1,22 @@
+services:
+  tgshopbot:
+    build: .
+    container_name: tgshopbot
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+    volumes:
+      - .:/app
+    networks:
+      - projects-network
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  projects-network:
+    name: projects-network
+    external: true
