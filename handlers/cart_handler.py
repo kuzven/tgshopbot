@@ -122,14 +122,12 @@ async def view_cart_handler(event: types.Message | types.CallbackQuery, user_id=
     """
     Показывает корзину пользователя в виде карточек товаров.
     """
-    user_id = user_id or event.from_user.id  # Используем переданный user_id или берем из event
-    logger.info(f"🔍 Получаем `id` для `telegram_id={user_id}`.")
+    user_id = user_id or event.from_user.id  
+    logger.info(f"Получаем `id` для `telegram_id={user_id}`.")
 
     # Удаляем все предыдущие сообщения
-    if isinstance(event, types.CallbackQuery):
-        await delete_all_previous_messages(event.message.bot, user_id)
-    else:
-        await delete_all_previous_messages(event.bot, user_id)
+    bot_instance = event.message.bot if isinstance(event, types.CallbackQuery) else event.bot
+    await delete_all_previous_messages(bot_instance, user_id)
 
     async with async_session_maker() as session:
         user_check_query = text("SELECT id FROM users_botuser WHERE telegram_id = :user_id")
@@ -137,8 +135,8 @@ async def view_cart_handler(event: types.Message | types.CallbackQuery, user_id=
         user_db_id = result.scalar()
 
         if not user_db_id:
-            logger.warning(f"⚠ Ошибка! `telegram_id={user_id}` не найден в `users_botuser`.")
-            await event.message.answer("❌ Ошибка! Ваш профиль не найден.") if isinstance(event, types.CallbackQuery) else await event.answer("❌ Ошибка! Ваш профиль не найден.")
+            logger.warning(f"Ошибка! `telegram_id={user_id}` не найден в `users_botuser`.")
+            await (event.message.answer("❌ Ошибка! Ваш профиль не найден.") if isinstance(event, types.CallbackQuery) else event.answer("❌ Ошибка! Ваш профиль не найден."))
             return
 
         await session.commit()
@@ -158,40 +156,37 @@ async def view_cart_handler(event: types.Message | types.CallbackQuery, user_id=
     logger.info(f"Найдено товаров в корзине: {len(cart_items)}")
 
     if not cart_items:
-        logger.warning(f"⚠ Корзина пуста для пользователя `id={user_db_id}`!")
-        await event.message.answer("🛒 Ваша корзина пуста!") if isinstance(event, types.CallbackQuery) else await event.answer("🛒 Ваша корзина пуста!")
+        logger.warning(f"Корзина пуста для пользователя `id={user_db_id}`!")
+        await (event.message.answer("🛒 Ваша корзина пуста!") if isinstance(event, types.CallbackQuery) else event.answer("🛒 Ваша корзина пуста!"))
         return
 
-    # Создаём карточки для каждого товара в корзине
+    if user_id not in last_message:
+        last_message[user_id] = []
+
     for item in cart_items:
         product_id, product_name, price, image_url, quantity = item
         logger.info(f"Товар в корзине: {product_name}, Количество: {quantity}")
 
         cart_keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
             [types.InlineKeyboardButton(text="❌ Удалить", callback_data=f"remove_{product_id}")],
-            [types.InlineKeyboardButton(text="✏ Изменить количество", callback_data=f"update_{product_id}")],
-            [types.InlineKeyboardButton(text="🏠 Главное меню", callback_data="start")]
+            [types.InlineKeyboardButton(text="✏ Изменить количество", callback_data=f"update_{product_id}")]
         ])
 
-        # Проверяем тип `event`, чтобы выбрать `answer_photo()`
-        if isinstance(event, types.CallbackQuery):
-            sent_message = await event.message.answer_photo(
-                photo=image_url,
-                caption=f"**{product_name}**\nЦена: {price} ₽\nКоличество: {quantity} шт.",
-                reply_markup=cart_keyboard,
-                parse_mode="Markdown"
-            )
-        else:
-            sent_message = await event.answer_photo(
-                photo=image_url,
-                caption=f"**{product_name}**\nЦена: {price} ₽\nКоличество: {quantity} шт.",
-                reply_markup=cart_keyboard,
-                parse_mode="Markdown"
-            )
-        
-        # Логируем сохранение ID сообщения
+        sent_message = await (event.message.answer_photo(photo=image_url, caption=f"**{product_name}**\nЦена: {price} ₽\nКоличество: {quantity} шт.", reply_markup=cart_keyboard, parse_mode="Markdown") if isinstance(event, types.CallbackQuery) else event.answer_photo(photo=image_url, caption=f"**{product_name}**\nЦена: {price} ₽\nКоличество: {quantity} шт.", reply_markup=cart_keyboard, parse_mode="Markdown"))
+
         logger.info(f"Сохраняем ID сообщения `{sent_message.message_id}` для пользователя `{user_id}`.")
         last_message[user_id].append(sent_message.message_id)
+
+    general_cart_keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="📦 Оформить заказ", callback_data="checkout")],
+        [types.InlineKeyboardButton(text="🏠 Главное меню", callback_data="start")]
+    ])
+
+    general_message = await (event.message.answer("Выберите действие 👇", reply_markup=general_cart_keyboard) if isinstance(event, types.CallbackQuery) else event.answer("Выберите действие 👇", reply_markup=general_cart_keyboard))
+
+    logger.info(f"Сохраняем ID сообщения `{general_message.message_id}` с кнопками для пользователя `{user_id}`.")
+    last_message[user_id].append(general_message.message_id)
+
 
 @router.callback_query(lambda callback_query: callback_query.data.startswith("remove_"))
 async def remove_from_cart_handler(callback_query: types.CallbackQuery):
