@@ -1,4 +1,5 @@
 import os
+import asyncio
 import logging
 import uuid
 from aiogram import Router, types
@@ -117,6 +118,7 @@ async def confirm_order_handler(message: types.Message):
         "description": f"Оплата заказа №{order_id}"
     }, idempotence_key)  # Передаём `idempotence_key`
 
+    payment_id = payment.id # Сохраняем ID платежа
     payment_url = payment.confirmation.confirmation_url
     logger.info(f"Сгенерирована ссылка для оплаты заказа `{order_id}`: {payment_url}")
 
@@ -133,3 +135,36 @@ async def confirm_order_handler(message: types.Message):
     # Удаляем данные из `order_sessions`
     del order_sessions[user_id]
     logger.info(f"`order_sessions[{user_id}]` Данные `order_sessions` удалены успешно!")
+
+    # Запускаем проверку статуса платежа
+    await check_payment_status(message.bot, payment_id, user_id)
+
+async def check_payment_status(bot, payment_id, user_id):
+    """
+    Проверяет статус платежа и отправляет сообщение пользователю после успешной оплаты.
+    """
+    while True:
+        payment = Payment.find_one(payment_id)  # Получаем статус платежа
+        if payment.status == "succeeded":
+            logger.info(f"Оплата заказа `{payment_id}` успешно завершена для пользователя `{user_id}`.")
+
+            # Удаляем предыдущее сообщение
+            await delete_previous_message(bot, user_id)
+            logger.info(f"Удалено предыдущее сообщение перед отправкой подтверждения оплаты пользователю `{user_id}`.")
+
+            # Кнопка "🏠 Главное меню"
+            menu_keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+                [types.InlineKeyboardButton(text="🏠 Главное меню", callback_data="start")]
+            ])
+
+            # Отправляем пользователю сообщение о подтверждении заказа
+            await bot.send_message(
+                chat_id=user_id,
+                text="✅ Заказ успешно оплачен, ожидай доставки!",
+                reply_markup=menu_keyboard
+            )
+            logger.info(f"Отправлено подтверждение оплаты пользователю `{user_id}`.")
+
+            break  # Останавливаем проверку после успешной оплаты
+
+        await asyncio.sleep(10)  # Проверяем статус каждые 10 секунд
