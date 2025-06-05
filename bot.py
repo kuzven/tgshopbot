@@ -18,6 +18,7 @@ from handlers.category_handler import router as category_router
 from handlers.subcategory_handler import router as subcategory_router
 from handlers.product_handler import router as product_router
 from handlers.cart_handler import router as cart_router
+from handlers.order_handler import router as order_router
 
 load_dotenv()
 
@@ -45,6 +46,7 @@ dp.include_router(category_router)
 dp.include_router(subcategory_router)
 dp.include_router(product_router)
 dp.include_router(cart_router)
+dp.include_router(order_router)
 
 async def main():
     await bot.set_my_commands([  # Устанавливаем команды бота перед запуском

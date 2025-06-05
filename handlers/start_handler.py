@@ -30,6 +30,7 @@ async def start_callback_handler(callback_query: types.CallbackQuery):
     """
     user_id = callback_query.from_user.id
     first_name = callback_query.from_user.first_name
+    
     # Удаляем предыдущее сообщение, если оно есть
     if callback_query.message:
         await delete_previous_message(callback_query.message.bot, user_id)
